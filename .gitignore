@@ -1,5 +1,6 @@
 __pycache__
 sirg.egg-info
+.ipynb_checkpoints
 .coverage
 *.swp
 *.egg-info/
