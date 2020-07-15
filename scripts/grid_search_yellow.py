@@ -35,16 +35,16 @@ np.random.shuffle(all_image_array)
 
 for i in all_image_array:
     image_list += [np.load(path + "image_" + str(i) + ".npy")]
-    value_list += [np.load(path + "values_" + str(i) + ".npy")/300]
+    value_list += [np.load(path + "values_" + str(i) + ".npy")]
 
 # SPLIT THE DATA & Normalization 2
 
-split = 1000
+split = 100
 
 image_list_training = image_list[:split]
 value_list_training = value_list[:split]
 
-image_training_array = (np.asarray(image_list_training)/255).astype("float32")
+image_training_array = np.asarray(image_list_training)
 value_training_array = np.asarray(value_list_training)
 
 # Create 8 times more data by flippling and rotating
@@ -52,15 +52,15 @@ value_training_array = np.asarray(value_list_training)
 
 def flip_image(image,label):
     im = np.fliplr(image)
-    l = [300-label[1] ,300-label[0],label[2],label[3]]
+    l = [300-label[1], 300-label[0],label[2],label[3]]
     return im, l
 
 def rotate_image(image,label):
     im = np.rot90(image)
-    l = [label[2] ,label[3],300-label[1],300-label[0]]
+    l = [label[2], label[3], 300-label[1], 300-label[0]]
     return im,l
 
-def flip_and_rotate(image,label,flip=True):
+def flip_and_rotate(image,label,flip=False):
     #if flip=False, then only return a list of the 4 rotated images
     #if flip=True, then return 8 images (rotations+flips)
     output_images=[]
@@ -86,28 +86,33 @@ for i in tqdm(range(split)):
     fliped_and_rotated_labels += new_lab
 
 
-all_im = np.asarray(fliped_and_rotated_images)
-all_lab = np.asarray(fliped_and_rotated_labels)
+all_im = (np.asarray(fliped_and_rotated_images)/255).astype("float32")
+
+all_lab = np.asarray(fliped_and_rotated_labels)/300.
 # DEFINE THE MODEL
+
+es = EarlyStopping(monitor='val_loss', mode='min', verbose=0, patience=5)
 
 def model_train(first_conv, second_conv):
     model = Sequential()
-    model.add(MaxPooling2D(pool_size=(4,4),input_shape=(300,300,3)))
-    model.add(Convolution2D(first_conv, (5,5),activation='relu'))
-    model.add(Convolution2D(second_conv, (5,5),activation='relu'))
-    model.add(MaxPooling2D(pool_size=(3,3)))
+    model.add(AveragePooling2D(pool_size=(2,2),input_shape=(300,300,3)))
+    model.add(Convolution2D(first_conv, (3, 3),activation='relu'))
+    model.add(AveragePooling2D(pool_size = (2, 2)))
+    model.add(Convolution2D(second_conv, (3, 3),activation='relu'))
+    model.add(AveragePooling2D(pool_size = (2, 2)))
+    model.add(Convolution2D(20, (3, 3),activation='relu'))
+    model.add(AveragePooling2D(pool_size = (2, 2)))
+    model.add(Convolution2D(5, (3, 3),activation='relu'))
+    model.add(AveragePooling2D(pool_size=(2, 2)))
     model.add(Flatten()),
-    model.add(Dense(16, activation='relu')),
-    model.add(Dense(16, activation='relu')),
-    model.add(Dense(4,activation='relu'))
+    model.add(Dense(32, activation='relu')),
+    model.add(Dense(4, activation='relu'))
     model.build()
 
     model.compile(loss= "mean_squared_error" , optimizer="adam")
-    
-    model.fit(image_training_array, value_training_array, batch_size=200, epochs=1000)
-
+    model.fit(all_im, all_lab, epochs=150, validation_split=0.1, shuffle=True, verbose=1, callbacks=[es])
     model.save('my_model_' + str(first_conv) + '_' + str(second_conv) + '.h5')
 
-for f in [5,6,7,8]:
-    for s in [5,6,7,8]:
+for first_conv in [10]:
+    for second_conv in [10]:
         model_train(first_conv, second_conv)
